@@ -86,6 +86,43 @@ def get_address_from_coordinates(lat, lon):
         print(f"Geocoding error: {e}")
         return None
 
+def get_coordinates_from_address(address_query):
+    """
+    Get coordinates from street name/address using forward geocoding.
+    Returns tuple (lat, lon) or None if not found.
+    """
+    try:
+        location = geolocator.geocode(address_query, timeout=10)
+        if location:
+            return (location.latitude, location.longitude)
+        return None
+    except Exception as e:
+        print(f"Forward geocoding error: {e}")
+        return None
+
+def detect_and_convert_address_in_question(question):
+    """
+    Detect if the question contains a street name or address and convert it to coordinates.
+    Returns enhanced question with coordinate information.
+    """
+    # Common patterns that suggest an address query
+    address_keywords = ['street', 'avenue', 'road', 'calle', 'avenida', 'en ', 'on ']
+    
+    # Check if question likely contains an address
+    lower_question = question.lower()
+    has_address_keyword = any(keyword in lower_question for keyword in address_keywords)
+    
+    if has_address_keyword:
+        # Try to geocode the question as-is or extract the address part
+        coords = get_coordinates_from_address(question)
+        
+        if coords:
+            lat, lon = coords
+            # Add coordinate info to help the SQL agent
+            return f"{question}\n\nNOTE: The address corresponds to approximately latitude {lat} and longitude {lon}. Search for traffic data with coordx near {lat} and coordy near {lon} (within 0.01 degree radius)."
+    
+    return question
+
 def enrich_results_with_addresses(query_result):
     """
     If the result contains coordinates, add address information.
@@ -129,6 +166,9 @@ def ask_question():
         if not question:
             return jsonify({'error': 'No question provided'}), 400
         
+        # Detect and convert address to coordinates if needed
+        question_with_coords = detect_and_convert_address_in_question(question)
+        
         # Add context to help the agent understand the data structure
         enhanced_question = f"""
         You have access to a table called 'traffic_data' with these columns:
@@ -140,7 +180,9 @@ def ask_question():
         - coordx (FLOAT): latitude coordinate
         - coordy (FLOAT): longitude coordinate
         
-        User question: {question}
+        User question: {question_with_coords}
+        
+        When searching by coordinates, use a range query like: WHERE coordx BETWEEN (lat-0.01) AND (lat+0.01) AND coordy BETWEEN (lon-0.01) AND (lon+0.01)
         
         Please provide a clear, concise answer. If you return data with coordinates, include the coordx and coordy values.
         """
