@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMG Traffic Data Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🚦 AMG Traffic Data Assistant</h1>
+            <p class="subtitle">Ask questions about traffic data in natural language</p>
+        </header>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="welcome-message">
+                <h2>Welcome! 👋</h2>
+                <p>Ask me anything about the traffic data. For example:</p>
+                <ul>
+                    <li>"What is the average traffic in locations with red color?"</li>
+                    <li>"Show me the top 5 locations with highest exponential color weighting"</li>
+                    <li>"How many records have green predominant color?"</li>
+                    <li>"What are the coordinates of the worst traffic areas?"</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <form id="questionForm" onsubmit="handleSubmit(event)">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="questionInput" 
+                        placeholder="Type your question here..." 
+                        rows="1"
+                        autofocus
+                    ></textarea>
+                    <button type="submit" id="submitBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+            <div class="info-text">
+                💡 Press Enter to send, Shift+Enter for new line
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chatContainer');
+        const questionForm = document.getElementById('questionForm');
+        const questionInput = document.getElementById('questionInput');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Auto-resize textarea
+        questionInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Handle Enter key (submit) vs Shift+Enter (new line)
+        questionInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                questionForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+            
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            // Remove welcome message if it exists
+            const welcomeMsg = document.querySelector('.welcome-message');
+            if (welcomeMsg) {
+                welcomeMsg.remove();
+            }
+
+            // Add user message
+            addMessage(question, 'user');
+            
+            // Clear input
+            questionInput.value = '';
+            questionInput.style.height = 'auto';
+            
+            // Disable input while processing
+            questionInput.disabled = true;
+            submitBtn.disabled = true;
+            
+            // Add loading indicator
+            const loadingId = addMessage('Thinking...', 'assistant', true);
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question })
+                });
+
+                const data = await response.json();
+                
+                // Remove loading indicator
+                document.getElementById(loadingId).remove();
+
+                if (data.success) {
+                    addMessage(data.answer, 'assistant');
+                } else {
+                    addMessage(`Error: ${data.error || 'Unknown error occurred'}`, 'error');
+                }
+            } catch (error) {
+                // Remove loading indicator
+                document.getElementById(loadingId).remove();
+                addMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                // Re-enable input
+                questionInput.disabled = false;
+                submitBtn.disabled = false;
+                questionInput.focus();
+            }
+        }
+
+        function addMessage(text, type, isLoading = false) {
+            const messageId = 'msg-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.id = messageId;
+            
+            if (isLoading) {
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        <div class="loading-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const formattedText = formatMessage(text);
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        ${formattedText}
+                    </div>
+                `;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            return messageId;
+        }
+
+        function formatMessage(text) {
+            // Convert newlines to <br>
+            let formatted = text.replace(/\n/g, '<br>');
+            
+            // Make coordinates bold
+            formatted = formatted.replace(/coordx|coordy/gi, match => `<strong>${match}</strong>`);
+            
+            // Make IDs bold
+            formatted = formatted.replace(/\bID\s+\d+/gi, match => `<strong>${match}</strong>`);
+            
+            return formatted;
+        }
+
+        // Load table info on startup (optional)
+        async function loadTableInfo() {
+            try {
+                const response = await fetch('/table-info');
+                const data = await response.json();
+                console.log('Table info:', data);
+            } catch (error) {
+                console.error('Error loading table info:', error);
+            }
+        }
+
+        // Uncomment to load table info on startup
+        // loadTableInfo();
+    </script>
+</body>
+</html>

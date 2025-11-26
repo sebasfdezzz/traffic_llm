@@ -1,0 +1,63 @@
+(venv) ubuntu@ip-172-31-33-54:~$ python load_traffic_data.py 
+Clonando repositorios...
+Leyendo CSVs 2025...
+Leyendo CSVs 2024...
+Cargando archivos y concatenando...
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5852/5852 [00:14<00:00, 416.02it/s]
+Leyendo locationPoints.csv...
+Unificando tablas por id...
+Archivo unificado generado: amg_unificado.csv
+Subiendo a S3...
+✓ Subido a s3://amg-traffic-data/unificado/amg_traffic_2024_2025.csv
+
+
+(venv) ubuntu@ip-172-31-33-54:~$ python upload.py 
+Descargando archivo desde s3://amg-traffic-data/unificado/amg_traffic_2024_2025.csv...
+✓ Archivo descargado: temp_s3_download.csv
+Leyendo CSV...
+✓ Cargados 3,985,212 registros
+Conectando a Aurora...
+Creando tabla traffic_data si no existe...
+✓ Tabla lista
+Normalizando columnas numéricas...
+✓ Columnas numéricas normalizadas (errores → NULL)
+Insertando datos con método COPY (ultra rápido)...
+✓ CARGA COMPLETA A AURORA (COPY METHOD)
+Limpiando archivo temporal...
+✓ Archivo temporal eliminado
+
+Verificando primeros registros...
+✓ Primeros 20 registros:
+('4.0', 'green', 0.0, 0.0, None, -103.3806142, 20.6467019)
+('9.0', 'green', 0.0, 0.0, None, -103.4563948, 20.7135301)
+('15.0', 'green', 0.125, 0.25, None, -103.3573826, 20.6594091)
+('16.0', 'green', 0.125, 0.25, None, -103.290369, 20.6628693)
+('19.0', 'green', 0.1417381974248927, 0.2723175965665236, None, -103.3038164, 20.6699891)
+('20.0', 'green', 0.125, 0.25, None, -103.3809342, 20.6467496)
+('21.0', 'green', 0.1437680461982675, 0.2750240615976901, None, -103.3704142, 20.6587118)
+('22.0', 'green', 0.125, 0.25, None, -103.4511778, 20.6507871)
+('30.0', 'orange', 0.25, 0.5, None, -103.3690286, 20.6359011)
+('37.0', 'green', 0.125, 0.25, None, -103.3258091, 20.653198)
+('42.0', 'green', 0.0, 0.0, None, -103.2810756, 20.5620818)
+('50.0', 'green', 0.125, 0.25, None, None, 20.7025379)
+('55.0', 'green', 0.125, 0.25, None, -103.3564262, 20.7322654)
+('105.0', 'green', 0.125, 0.25, None, -103.4537768, 20.7310821)
+('108.0', 'green', 0.125, 0.25, None, -103.2434868, 20.6267774)
+('112.0', 'green', 0.125, 0.25, None, -103.3005748, 20.6967754)
+('113.0', 'green', 0.1263537906137184, 0.2518050541516245, None, -103.3259251, 20.6352592)
+('115.0', 'orange', 0.25, 0.5, None, -103.2914086, 20.6847856)
+('116.0', 'green', 0.0, 0.0, None, -103.3341595, 20.6663525)
+('121.0', 'green', 0.125, 0.25, None, -103.3370365, 20.7255023)
+
+=========== FIN ===========
+Registros cargados: 3,985,212
+===========================
+
+
+(venv) ubuntu@ip-172-31-33-54:~$ python verify.py 
+Conectando a Aurora...
+Verificando cantidad de registros en traffic_data...
+
+==================================================
+Total de registros en traffic_data: 3,985,212
+==================================================

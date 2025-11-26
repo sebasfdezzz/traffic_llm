@@ -1,0 +1,4 @@
+POST http://localhost:8000/ask
+{
+  "question": "¿Cuál es el tráfico promedio en la ubicación 44123?"
+}

@@ -1,0 +1,26 @@
+# Web Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Database
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# LangChain and AI
+langchain==0.1.0
+langchain-community==0.0.13
+langchain-openai==0.0.2
+openai==1.6.1
+
+# Geocoding
+geopy==2.4.1
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Production Server (for EC2 deployment)
+gunicorn==21.2.0
+
+# Utilities
+tqdm==4.66.1
+pandas==2.1.4

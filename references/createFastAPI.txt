@@ -1,0 +1,5 @@
+mkdir amg-agent
+cd amg-agent
+python -m venv venv
+source venv/bin/activate
+pip install fastapi uvicorn langchain sqlalchemy psycopg2-binary openai
