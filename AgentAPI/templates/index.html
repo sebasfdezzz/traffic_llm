@@ -9,19 +9,19 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>🚦 AMG Traffic Data Assistant</h1>
-            <p class="subtitle">Ask questions about traffic data in natural language</p>
+            <h1>🚦 Asistente de Datos de Tráfico AMG</h1>
+            <p class="subtitle">Analiza el tráfico del Área Metropolitana de Guadalajara en lenguaje natural</p>
         </header>
 
         <div class="chat-container" id="chatContainer">
             <div class="welcome-message">
-                <h2>Welcome! 👋</h2>
-                <p>Ask me anything about the traffic data. For example:</p>
+                <h2>¡Bienvenido! 👋</h2>
+                <p>Pregúntame sobre el tráfico en el Área Metropolitana de Guadalajara. Por ejemplo:</p>
                 <ul>
-                    <li>"What is the average traffic in locations with red color?"</li>
-                    <li>"Show me the top 5 locations with highest exponential color weighting"</li>
-                    <li>"How many records have green predominant color?"</li>
-                    <li>"What are the coordinates of the worst traffic areas?"</li>
+                    <li>"¿Dónde está el tráfico más pesado ahora?"</li>
+                    <li>"Muéstrame las 5 zonas con peor tráfico"</li>
+                    <li>"¿Cuántas áreas tienen tráfico ligero (verde)?"</li>
+                    <li>"¿Qué zonas tienen semáforo rojo (tráfico alto)?"</li>
                 </ul>
             </div>
         </div>
@@ -31,7 +31,7 @@
                 <div class="input-wrapper">
                     <textarea 
                         id="questionInput" 
-                        placeholder="Type your question here..." 
+                        placeholder="Escribe tu pregunta aquí..." 
                         rows="1"
                         autofocus
                     ></textarea>
@@ -43,7 +43,7 @@
                 </div>
             </form>
             <div class="info-text">
-                💡 Press Enter to send, Shift+Enter for new line
+                💡 Presiona Enter para enviar, Shift+Enter para nueva línea
             </div>
         </div>
     </div>
@@ -92,7 +92,7 @@
             submitBtn.disabled = true;
             
             // Add loading indicator
-            const loadingId = addMessage('Thinking...', 'assistant', true);
+            const loadingId = addMessage('Pensando...', 'assistant', true);
 
             try {
                 const response = await fetch('/ask', {
@@ -111,7 +111,7 @@
                 if (data.success) {
                     addMessage(data.answer, 'assistant');
                 } else {
-                    addMessage(`Error: ${data.error || 'Unknown error occurred'}`, 'error');
+                    addMessage(`Error: ${data.error || 'Ocurrió un error desconocido'}`, 'error');
                 }
             } catch (error) {
                 // Remove loading indicator

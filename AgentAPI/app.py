@@ -178,7 +178,7 @@ def ask_question():
         
         if not question:
             print("❌ Empty question received")
-            return jsonify({'error': 'No question provided'}), 400
+            return jsonify({'error': 'No se proporcionó ninguna pregunta'}), 400
         
         # Detect and convert address to coordinates if needed
         print("🔍 Checking for address in question...")
@@ -190,20 +190,28 @@ def ask_question():
         
         # Add context to help the agent understand the data structure
         enhanced_question = f"""
-        You have access to a table called 'traffic_data' with these columns:
-        - id (TEXT): unique identifier
-        - predominant_color (TEXT): traffic color indicator (red, yellow, green)
-        - exponential_color_weighting (FLOAT): exponential weighted traffic score
-        - linear_color_weighting (FLOAT): linear weighted traffic score
-        - diffuse_logic_traffic (FLOAT): diffuse logic traffic value
-        - coordx (FLOAT): latitude coordinate
-        - coordy (FLOAT): longitude coordinate
+        Estás analizando datos de tráfico del Área Metropolitana de Guadalajara (AMG), México.
         
-        User question: {question_with_coords}
+        Tienes acceso a una tabla llamada 'traffic_data' con estas columnas:
+        - id (TEXT): identificador único de la ubicación
+        - predominant_color (TEXT): indicador de nivel de tráfico
+          * green = tráfico LIGERO (fluido, sin congestión)
+          * yellow/orange = tráfico MEDIO (algo de congestión)
+          * red = tráfico ALTO (congestión severa, muy lento)
+        - exponential_color_weighting (FLOAT): puntaje de congestión ponderado exponencial (mayor valor = peor tráfico)
+        - linear_color_weighting (FLOAT): puntaje de congestión ponderado lineal (mayor valor = peor tráfico)
+        - diffuse_logic_traffic (FLOAT): valor difuso (NO es relevante, ignóralo)
+        - coordx (FLOAT): coordenada de LONGITUD (aproximadamente -103.2 a -103.5 para Guadalajara)
+        - coordy (FLOAT): coordenada de LATITUD (aproximadamente 20.5 a 20.8 para Guadalajara)
         
-        When searching by coordinates, use a range query like: WHERE coordx BETWEEN (lat-0.01) AND (lat+0.01) AND coordy BETWEEN (lon-0.01) AND (lon+0.01)
+        IMPORTANTE: Las coordenadas están en formato (longitud, latitud). Coordx es longitud (oeste de Greenwich, valores negativos) y Coordy es latitud.
         
-        Please provide a clear, concise answer. If you return data with coordinates, include the coordx and coordy values.
+        Pregunta del usuario: {question_with_coords}
+        
+        Al buscar por coordenadas, usa una consulta de rango como: WHERE coordx BETWEEN (lon-0.01) AND (lon+0.01) AND coordy BETWEEN (lat-0.01) AND (lat+0.01)
+        
+        Por favor proporciona una respuesta clara y concisa en español. Si devuelves datos con coordenadas, incluye los valores de coordx y coordy.
+        Cuando menciones niveles de tráfico, usa términos claros: tráfico ligero/fluido (green), tráfico medio (yellow/orange), tráfico pesado/alto (red).
         """
         
         # Execute the agent
@@ -211,7 +219,7 @@ def ask_question():
         result = agent_executor.invoke({"input": enhanced_question})
         print("✅ Agent execution completed")
         
-        answer = result.get('output', 'No answer generated')
+        answer = result.get('output', 'No se generó respuesta')
         print(f"📝 Answer generated: {answer[:100]}..." if len(answer) > 100 else f"📝 Answer: {answer}")
         
         # Try to extract coordinates from the intermediate steps and enrich with addresses
@@ -237,7 +245,7 @@ def ask_question():
                         
                         if addresses:
                             print(f"✅ Added {len(addresses)} address(es) to response")
-                            enriched_answer += "\n\nLocations:\n" + "\n".join(addresses)
+                            enriched_answer += "\n\nUbicaciones:\n" + "\n".join(addresses)
         except Exception as e:
             print(f"⚠️  Error adding addresses: {e}")
         
@@ -252,7 +260,7 @@ def ask_question():
         print(f"\n❌ ERROR processing question: {e}")
         print(f"{'='*60}\n")
         return jsonify({
-            'error': f'Error processing your question: {str(e)}',
+            'error': f'Error al procesar tu pregunta: {str(e)}',
             'success': False
         }), 500
 
