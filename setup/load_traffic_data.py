@@ -5,16 +5,8 @@ import pandas as pd
 from tqdm import tqdm
 import boto3
 
-# ==============================
-# CONFIG
-# ==============================
-
 BUCKET = "amg-traffic-data"
 S3_KEY = "unificado/amg_traffic_2024_2025.csv"
-
-# ==============================
-# STEP 1 — clone repos
-# ==============================
 
 print("Clonando repositorios...")
 if not os.path.exists("AMGtraffic2025"):
@@ -22,10 +14,6 @@ if not os.path.exists("AMGtraffic2025"):
 
 if not os.path.exists("AMGTraffic2024"):
     subprocess.run(["git", "clone", "https://github.com/ralejandrobm/AMGTraffic2024.git"])
-
-# ==============================
-# STEP 2 — cargar csvs
-# ==============================
 
 print("Leyendo CSVs 2025...")
 files_2025 = glob.glob("AMGtraffic2025/historico/*.csv")
@@ -53,18 +41,10 @@ loc = pd.read_csv(
 print("Unificando tablas por id...")
 merged = full_df.merge(loc, on="id", how="left")
 
-# ==============================
-# STEP 3 — guardar CSV temporal
-# ==============================
-
 out_file = "amg_unificado.csv"
 merged.to_csv(out_file, index=False)
 
 print(f"Archivo unificado generado: {out_file}")
-
-# ==============================
-# STEP 4 — subir a S3
-# ==============================
 
 print("Subiendo a S3...")
 s3 = boto3.client("s3")

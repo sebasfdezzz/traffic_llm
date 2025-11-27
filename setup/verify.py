@@ -1,18 +1,10 @@
 from sqlalchemy import create_engine, text
 
-# ==============================
-# CONFIG
-# ==============================
-
 AURORA_HOST = "amg-traffic-cluster.cluster-clss68yoix1c.us-east-2.rds.amazonaws.com"
 AURORA_DB = "postgres"
 DB_USER = "root"
 DB_PASS = "rootroot"
 DB_PORT = 5432
-
-# ==============================
-# CONNECT AND VERIFY
-# ==============================
 
 print("Conectando a Aurora...")
 engine = create_engine(

@@ -6,10 +6,6 @@ from langchain_community.agent_toolkits import create_sql_agent
 from langchain_openai import ChatOpenAI
 from geopy.geocoders import Nominatim
 
-# ==============================
-# CONFIG
-# ==============================
-
 AURORA_HOST = "amg-traffic-cluster.cluster-clss68yoix1c.us-east-2.rds.amazonaws.com"
 AURORA_DB = "postgres"
 DB_USER = "root"
@@ -17,14 +13,9 @@ DB_PASS = "rootroot"
 DB_PORT = 5432
 OPENAI_API_KEY = "<INSERT_KEY>"
 
-# Initialize Flask app
 app = Flask(__name__)
 
 print("🚀 Initializing AMG Traffic Data Assistant...")
-
-# ==============================
-# DATABASE CONNECTION
-# ==============================
 
 print(f"📊 Connecting to database: {AURORA_HOST}")
 engine = create_engine(
@@ -37,10 +28,6 @@ print("✅ Database engine created")
 
 db = SQLDatabase(engine)
 print("✅ SQL Database wrapper initialized")
-
-# ==============================
-# LLM AGENT SETUP
-# ==============================
 
 print("🤖 Setting up LLM agent with OpenAI...")
 llm = ChatOpenAI(
@@ -59,24 +46,16 @@ agent_executor = create_sql_agent(
 )
 print("✅ LLM agent ready")
 
-# ==============================
-# GEOCODING SETUP
-# ==============================
-
 print("🗺️  Setting up geocoding service...")
 geolocator = Nominatim(user_agent="amg_traffic_app")
 print("✅ Geocoder ready")
 
 def get_address_from_coordinates(lat, lon):
-    """
-    Get street name or area from coordinates using reverse geocoding.
-    """
     try:
         location = geolocator.reverse(f"{lat}, {lon}", language="es", timeout=10)
         if location:
             address = location.raw.get('address', {})
             
-            # Try to build a meaningful address
             parts = []
             if 'road' in address:
                 parts.append(address['road'])
@@ -96,10 +75,6 @@ def get_address_from_coordinates(lat, lon):
         return None
 
 def get_coordinates_from_address(address_query):
-    """
-    Get coordinates from street name/address using forward geocoding.
-    Returns tuple (lat, lon) or None if not found.
-    """
     try:
         location = geolocator.geocode(address_query, timeout=10)
         if location:
@@ -110,38 +85,37 @@ def get_coordinates_from_address(address_query):
         return None
 
 def detect_and_convert_address_in_question(question):
-    """
-    Detect if the question contains a street name or address and convert it to coordinates.
-    Returns enhanced question with coordinate information.
-    """
-    # Common patterns that suggest an address query
-    address_keywords = ['street', 'avenue', 'road', 'calle', 'avenida', 'en ', 'on ']
+    address_keywords = [
+        'street', 'avenue', 'road', 'calle', 'avenida', 'en ', 'on ',
+        'boulevard', 'bulevar', 'callejón', 'callejuela', 'paseo',
+        'plaza', 'plazuela', 'glorieta', 'rotonda', 'circuito',
+        'periférico', 'anillo', 'libramiento', 'autopista',
+        'carretera', 'camino', 'sendero', 'vereda', 'andador',
+        'privada', 'fraccionamiento', 'colonia', 'barrio',
+        'sector', 'zona', 'región', 'área', 'distrito',
+        'cerca de', 'próximo a', 'junto a', 'frente a',
+        'esquina', 'cruce', 'intersección', 'puente',
+        'centro comercial', 'mall', 'mercado', 'hospital',
+        'escuela', 'universidad', 'parque', 'jardín'
+    ]
     
-    # Check if question likely contains an address
     lower_question = question.lower()
     has_address_keyword = any(keyword in lower_question for keyword in address_keywords)
     
     if has_address_keyword:
-        # Try to geocode the question as-is or extract the address part
         coords = get_coordinates_from_address(question)
         
         if coords:
             lat, lon = coords
-            # Add coordinate info to help the SQL agent
-            return f"{question}\n\nNOTE: The address corresponds to approximately latitude {lat} and longitude {lon}. Search for traffic data with coordx near {lat} and coordy near {lon} (within 0.01 degree radius)."
+            return f"{question}\n\nNOTA: La dirección corresponde aproximadamente a latitud {lat} y longitud {lon}. Busca datos de tráfico con coordx cerca de {lat} y coordy cerca de {lon} (dentro de un radio de 0.01 grados)."
     
     return question
 
 def enrich_results_with_addresses(query_result):
-    """
-    If the result contains coordinates, add address information.
-    """
     try:
-        # Check if result contains coordinate data
         if isinstance(query_result, str):
             return query_result
         
-        # If it's a list of records with Coordx and Coordy
         if isinstance(query_result, list):
             for record in query_result:
                 if isinstance(record, dict) and 'coordx' in record and 'coordy' in record:
@@ -154,20 +128,12 @@ def enrich_results_with_addresses(query_result):
         print(f"Error enriching results: {e}")
         return query_result
 
-# ==============================
-# ROUTES
-# ==============================
-
 @app.route('/')
 def index():
-    """Render the main UI."""
     return render_template('index.html')
 
 @app.route('/ask', methods=['POST'])
 def ask_question():
-    """
-    Process natural language questions about traffic data.
-    """
     try:
         data = request.get_json()
         question = data.get('question', '').strip()
@@ -180,7 +146,6 @@ def ask_question():
             print("❌ Empty question received")
             return jsonify({'error': 'No se proporcionó ninguna pregunta'}), 400
         
-        # Detect and convert address to coordinates if needed
         print("🔍 Checking for address in question...")
         question_with_coords = detect_and_convert_address_in_question(question)
         if question_with_coords != question:
@@ -188,7 +153,6 @@ def ask_question():
         else:
             print("ℹ️  No address detected, proceeding with original question")
         
-        # Add context to help the agent understand the data structure
         enhanced_question = f"""
         Estás analizando datos de tráfico del Área Metropolitana de Guadalajara (AMG), México.
         
@@ -214,7 +178,6 @@ def ask_question():
         Cuando menciones niveles de tráfico, usa términos claros: tráfico ligero/fluido (green), tráfico medio (yellow/orange), tráfico pesado/alto (red).
         """
         
-        # Execute the agent
         print("🤖 Executing SQL agent...")
         result = agent_executor.invoke({"input": enhanced_question})
         print("✅ Agent execution completed")
@@ -222,37 +185,10 @@ def ask_question():
         answer = result.get('output', 'No se generó respuesta')
         print(f"📝 Answer generated: {answer[:100]}..." if len(answer) > 100 else f"📝 Answer: {answer}")
         
-        # Try to extract coordinates from the intermediate steps and enrich with addresses
-        enriched_answer = answer
-        try:
-            # Check if there are coordinates in the result
-            if 'coordx' in answer.lower() or 'coordy' in answer.lower():
-                print("🗺️  Coordinates found in answer, enriching with addresses...")
-                # Try to extract coordinates and get addresses
-                # This is a simple implementation - can be enhanced
-                with engine.connect() as conn:
-                    # Get a sample of results if the query was about specific locations
-                    query_result = conn.execute(text(
-                        "SELECT id, predominant_color, coordx, coordy FROM traffic_data LIMIT 5"
-                    )).fetchall()
-                    
-                    if query_result:
-                        addresses = []
-                        for row in query_result:
-                            addr = get_address_from_coordinates(row[2], row[3])
-                            if addr:
-                                addresses.append(f"ID {row[0]} ({row[1]}): {addr}")
-                        
-                        if addresses:
-                            print(f"✅ Added {len(addresses)} address(es) to response")
-                            enriched_answer += "\n\nUbicaciones:\n" + "\n".join(addresses)
-        except Exception as e:
-            print(f"⚠️  Error adding addresses: {e}")
-        
         print(f"✅ Request processed successfully")
         print(f"{'='*60}\n")
         return jsonify({
-            'answer': enriched_answer,
+            'answer': answer,
             'success': True
         })
         
@@ -266,9 +202,7 @@ def ask_question():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint."""
     try:
-        # Test database connection
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         
@@ -284,18 +218,14 @@ def health_check():
 
 @app.route('/table-info', methods=['GET'])
 def table_info():
-    """Get information about the traffic_data table."""
     try:
         with engine.connect() as conn:
-            # Get row count
             count_result = conn.execute(text("SELECT COUNT(*) FROM traffic_data")).fetchone()
             
-            # Get sample data
             sample_result = conn.execute(text(
                 "SELECT * FROM traffic_data LIMIT 5"
             )).fetchall()
             
-            # Get column names
             columns_result = conn.execute(text("""
                 SELECT column_name, data_type 
                 FROM information_schema.columns 
@@ -310,13 +240,7 @@ def table_info():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ==============================
-# RUN
-# ==============================
-
 if __name__ == '__main__':
-    # For production on EC2, use a proper WSGI server like gunicorn
-    # This is for development only
     print("\n" + "="*60)
     print("🚦 AMG Traffic Data Assistant is ready!")
     print("🌐 Server starting on http://0.0.0.0:80")

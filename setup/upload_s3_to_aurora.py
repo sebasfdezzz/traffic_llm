@@ -5,10 +5,6 @@ from sqlalchemy import create_engine, text
 from tqdm import tqdm
 from io import StringIO
 
-# ==============================
-# CONFIG
-# ==============================
-
 BUCKET = "amg-traffic-data"
 S3_KEY = "unificado/amg_traffic_2024_2025.csv"
 AURORA_HOST = "amg-traffic-cluster.cluster-clss68yoix1c.us-east-2.rds.amazonaws.com"
@@ -17,10 +13,6 @@ DB_USER = "root"
 DB_PASS = "rootroot"
 DB_PORT = 5432
 
-# ==============================
-# STEP 1 — download from S3
-# ==============================
-
 print(f"Descargando archivo desde s3://{BUCKET}/{S3_KEY}...")
 s3 = boto3.client("s3")
 
@@ -28,26 +20,14 @@ local_file = "temp_s3_download.csv"
 s3.download_file(BUCKET, S3_KEY, local_file)
 print(f"✓ Archivo descargado: {local_file}")
 
-# ==============================
-# STEP 2 — load CSV into DataFrame
-# ==============================
-
 print("Leyendo CSV...")
 df = pd.read_csv(local_file)
 print(f"✓ Cargados {len(df):,} registros")
-
-# ==============================
-# STEP 3 — connect to Aurora
-# ==============================
 
 print("Conectando a Aurora...")
 engine = create_engine(
     f"postgresql://{DB_USER}:{DB_PASS}@{AURORA_HOST}:{DB_PORT}/{AURORA_DB}?sslmode=require"
 )
-
-# ==============================
-# STEP 4 — create table
-# ==============================
 
 print("Creando tabla traffic_data si no existe...")
 
@@ -69,10 +49,6 @@ with engine.connect() as conn:
 
 print("✓ Tabla lista")
 
-# ==============================
-# STEP 5 — ultra-fast load with COPY
-# ==============================
-
 print("Normalizando columnas numéricas...")
 
 cols_float = [
@@ -91,7 +67,6 @@ print("✓ Columnas numéricas normalizadas (errores → NULL)")
 
 print("Insertando datos con método COPY (ultra rápido)...")
 
-# Convert DataFrame to CSV in memory
 csv_buffer = StringIO()
 df.to_csv(csv_buffer, index=False, header=False)
 csv_buffer.seek(0)
@@ -125,17 +100,9 @@ finally:
     cursor.close()
     conn.close()
 
-# ==============================
-# STEP 6 — cleanup
-# ==============================
-
 print("Limpiando archivo temporal...")
 os.remove(local_file)
 print("✓ Archivo temporal eliminado")
-
-# ==============================
-# STEP 7 — verify
-# ==============================
 
 print("\nVerificando primeros registros...")
 
