@@ -20,23 +20,29 @@ OPENAI_API_KEY = "<INSERT_KEY>"
 # Initialize Flask app
 app = Flask(__name__)
 
+print("🚀 Initializing AMG Traffic Data Assistant...")
+
 # ==============================
 # DATABASE CONNECTION
 # ==============================
 
+print(f"📊 Connecting to database: {AURORA_HOST}")
 engine = create_engine(
     f"postgresql://{DB_USER}:{DB_PASS}@{AURORA_HOST}:{DB_PORT}/{AURORA_DB}?sslmode=require",
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10
 )
+print("✅ Database engine created")
 
 db = SQLDatabase(engine)
+print("✅ SQL Database wrapper initialized")
 
 # ==============================
 # LLM AGENT SETUP
 # ==============================
 
+print("🤖 Setting up LLM agent with OpenAI...")
 llm = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0,
@@ -51,12 +57,15 @@ agent_executor = create_sql_agent(
     max_iterations=10,
     handle_parsing_errors=True
 )
+print("✅ LLM agent ready")
 
 # ==============================
 # GEOCODING SETUP
 # ==============================
 
+print("🗺️  Setting up geocoding service...")
 geolocator = Nominatim(user_agent="amg_traffic_app")
+print("✅ Geocoder ready")
 
 def get_address_from_coordinates(lat, lon):
     """
@@ -163,11 +172,21 @@ def ask_question():
         data = request.get_json()
         question = data.get('question', '').strip()
         
+        print(f"\n{'='*60}")
+        print(f"📥 New question received: '{question}'")
+        print(f"{'='*60}")
+        
         if not question:
+            print("❌ Empty question received")
             return jsonify({'error': 'No question provided'}), 400
         
         # Detect and convert address to coordinates if needed
+        print("🔍 Checking for address in question...")
         question_with_coords = detect_and_convert_address_in_question(question)
+        if question_with_coords != question:
+            print("✅ Address detected and converted to coordinates")
+        else:
+            print("ℹ️  No address detected, proceeding with original question")
         
         # Add context to help the agent understand the data structure
         enhanced_question = f"""
@@ -188,15 +207,19 @@ def ask_question():
         """
         
         # Execute the agent
+        print("🤖 Executing SQL agent...")
         result = agent_executor.invoke({"input": enhanced_question})
+        print("✅ Agent execution completed")
         
         answer = result.get('output', 'No answer generated')
+        print(f"📝 Answer generated: {answer[:100]}..." if len(answer) > 100 else f"📝 Answer: {answer}")
         
         # Try to extract coordinates from the intermediate steps and enrich with addresses
         enriched_answer = answer
         try:
             # Check if there are coordinates in the result
             if 'coordx' in answer.lower() or 'coordy' in answer.lower():
+                print("🗺️  Coordinates found in answer, enriching with addresses...")
                 # Try to extract coordinates and get addresses
                 # This is a simple implementation - can be enhanced
                 with engine.connect() as conn:
@@ -213,17 +236,21 @@ def ask_question():
                                 addresses.append(f"ID {row[0]} ({row[1]}): {addr}")
                         
                         if addresses:
+                            print(f"✅ Added {len(addresses)} address(es) to response")
                             enriched_answer += "\n\nLocations:\n" + "\n".join(addresses)
         except Exception as e:
-            print(f"Error adding addresses: {e}")
+            print(f"⚠️  Error adding addresses: {e}")
         
+        print(f"✅ Request processed successfully")
+        print(f"{'='*60}\n")
         return jsonify({
             'answer': enriched_answer,
             'success': True
         })
         
     except Exception as e:
-        print(f"Error processing question: {e}")
+        print(f"\n❌ ERROR processing question: {e}")
+        print(f"{'='*60}\n")
         return jsonify({
             'error': f'Error processing your question: {str(e)}',
             'success': False
@@ -282,4 +309,8 @@ def table_info():
 if __name__ == '__main__':
     # For production on EC2, use a proper WSGI server like gunicorn
     # This is for development only
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    print("\n" + "="*60)
+    print("🚦 AMG Traffic Data Assistant is ready!")
+    print("🌐 Server starting on http://0.0.0.0:80")
+    print("="*60 + "\n")
+    app.run(host='0.0.0.0', port=80, debug=False)
