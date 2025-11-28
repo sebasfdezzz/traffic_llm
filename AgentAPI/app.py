@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from flask import Flask, render_template, request, jsonify
 from sqlalchemy import create_engine, text
 from langchain_community.utilities import SQLDatabase
@@ -239,7 +240,7 @@ def ask_question():
           * yellow/orange = tráfico MEDIO (algo de congestión)
           * red = tráfico ALTO (congestión severa, muy lento)
         - exponential_color_weighting (FLOAT): puntaje de congestión ponderado exponencial (mayor valor = peor tráfico)
-        - linear_color_weighting (FLOAT): puntaje de congestión ponderado lineal (mayor valor = peor tráfico)
+        - linear_color_weighting (FLOAT): puntaje de congestión ponderado lineal (mayor valor = peor tr��fico)
         - diffuse_logic_traffic (FLOAT): valor difuso (NO es relevante, ignóralo)
         - coordx (FLOAT): coordenada de LONGITUD (aproximadamente -103.2 a -103.5 para Guadalajara)
         - coordy (FLOAT): coordenada de LATITUD (aproximadamente 20.5 a 20.8 para Guadalajara)
@@ -250,11 +251,30 @@ def ask_question():
         - SIEMPRE incluye las coordenadas (coordx y coordy) en tu respuesta cuando devuelvas datos de ubicaciones.
         - NO incluyas IDs en tu respuesta, no son útiles para humanos.
         
+        LÍMITES DE CONSULTA (MUY IMPORTANTE):
+        - SIEMPRE agrega "LIMIT 50" al final de TODAS tus consultas SQL
+        - Si el usuario pregunta por una ubicación específica, limita a 20 resultados máximo
+        - Si el usuario pregunta por un área amplia o condición general, limita a 50 resultados máximo
+        - NUNCA devuelvas más de 60 filas bajo ninguna circunstancia
+        - Si hay muchos resultados, prioriza los más relevantes (por ejemplo, los de mayor congestión) usando ORDER BY antes del LIMIT
+        
+        OPTIMIZACIÓN DE CONSULTAS (CRÍTICO - LEE ESTO PRIMERO):
+        - SIEMPRE prefiere usar agregaciones (COUNT, AVG, MAX, MIN) en lugar de traer filas individuales
+        - Usa GROUP BY cuando sea posible para resumir información en lugar de mostrar cada registro
+        - Ejemplos de queries eficientes:
+          * "¿Cuántos puntos con tráfico pesado?" -> SELECT COUNT(*) FROM traffic_data WHERE predominant_color = 'red'
+          * "¿Promedio de congestión en esta zona?" -> SELECT AVG(exponential_color_weighting), predominant_color FROM traffic_data WHERE ... GROUP BY predominant_color
+          * "¿Distribución del tráfico?" -> SELECT predominant_color, COUNT(*) as cantidad FROM traffic_data GROUP BY predominant_color
+        - Solo trae filas individuales cuando el usuario pida ubicaciones específicas o "dónde está..."
+        - Si el usuario pregunta "cómo está el tráfico en X", usa agregaciones para dar un resumen general, no listados completos
+        - Entre traer 50 filas o hacer un GROUP BY que devuelva 3 filas, SIEMPRE elige el GROUP BY
+        
         Pregunta del usuario: {question_with_coords}
         
         Por favor proporciona una respuesta clara y concisa en español. 
         OBLIGATORIO: Si mencionas ubicaciones, SIEMPRE incluye las coordenadas en formato "coordx: [valor], coordy: [valor]" para que puedan ser traducidas a nombres de calles.
         Cuando menciones niveles de tráfico, usa términos claros: tráfico ligero/fluido (green), tráfico medio (yellow/orange), tráfico pesado/alto (red).
+        Recuerda: Prefiere agregaciones y GROUP BY sobre listados completos. LIMIT 50 (o menos) en todas las consultas SQL.
         """
         
         print("🤖 Executing SQL agent...")
