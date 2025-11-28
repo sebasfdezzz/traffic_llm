@@ -1,4 +1,5 @@
 import json
+import re
 from flask import Flask, render_template, request, jsonify
 from sqlalchemy import create_engine, text
 from langchain_community.utilities import SQLDatabase
@@ -128,6 +129,81 @@ def enrich_results_with_addresses(query_result):
         print(f"Error enriching results: {e}")
         return query_result
 
+def humanize_agent_response(agent_response):
+    """
+    Post-procesa la respuesta del agente para convertir coordenadas e IDs técnicos
+    a nombres de zonas y direcciones legibles.
+    """
+    print("🗺️  Humanizando respuesta con nombres de zonas...")
+    
+    try:
+        humanized = agent_response
+        
+        # Patrón para detectar coordenadas en varios formatos
+        # Formato: "coordx: -103.xxx, coordy: 20.xxx" o "(-103.xxx, 20.xxx)" o "longitud: -103.xxx, latitud: 20.xxx"
+        coord_patterns = [
+            r'coordx[:\s]+([-\d.]+)[,\s]+coordy[:\s]+([-\d.]+)',
+            r'\(([-\d.]+)[,\s]+([-\d.]+)\)',
+            r'longitud[:\s]+([-\d.]+)[,\s]+latitud[:\s]+([-\d.]+)',
+            r'lon[:\s]+([-\d.]+)[,\s]+lat[:\s]+([-\d.]+)'
+        ]
+        
+        coords_found = set()
+        for pattern in coord_patterns:
+            matches = re.finditer(pattern, humanized, re.IGNORECASE)
+            for match in matches:
+                lon = float(match.group(1))
+                lat = float(match.group(2))
+                # Asegurarse de que sean coordenadas válidas para Guadalajara
+                if -103.6 < lon < -103.0 and 20.4 < lat < 20.9:
+                    coords_found.add((lon, lat, match.group(0)))
+        
+        # Convertir cada par de coordenadas a dirección
+        replacements = {}
+        for lon, lat, original_text in coords_found:
+            address = get_address_from_coordinates(lat, lon)
+            if address:
+                # Crear una versión humanizada
+                zone_text = f"📍 {address}"
+                replacements[original_text] = zone_text
+                print(f"   ✅ Traducido: ({lon}, {lat}) -> {address}")
+        
+        # Aplicar reemplazos
+        for original, replacement in replacements.items():
+            humanized = humanized.replace(original, replacement)
+        
+        # Remover o humanizar IDs técnicos si aparecen explícitamente
+        # Patrón para "id: abc123" o "ID: abc123"
+        id_pattern = r'id[:\s]+[\w-]+'
+        id_matches = re.finditer(id_pattern, humanized, re.IGNORECASE)
+        for match in id_matches:
+            # Los IDs no son útiles para humanos, intentar removerlos o contextualizarlos
+            if "id:" in match.group(0).lower():
+                humanized = humanized.replace(match.group(0), "(ubicación)")
+        
+        # Mejorar términos técnicos
+        tech_replacements = {
+            'exponential_color_weighting': 'nivel de congestión',
+            'linear_color_weighting': 'índice de tráfico',
+            'predominant_color': 'estado del tráfico',
+            'coordx': 'longitud',
+            'coordy': 'latitud',
+            'green': '🟢 LIGERO (fluido)',
+            'yellow': '🟡 MEDIO (moderado)',
+            'orange': '🟠 MEDIO-ALTO (algo congestionado)',
+            'red': '🔴 PESADO (muy congestionado)'
+        }
+        
+        for tech_term, human_term in tech_replacements.items():
+            humanized = re.sub(r'\b' + tech_term + r'\b', human_term, humanized, flags=re.IGNORECASE)
+        
+        print(f"   ✅ Respuesta humanizada completada")
+        return humanized
+        
+    except Exception as e:
+        print(f"   ⚠️  Error al humanizar respuesta: {e}")
+        return agent_response
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -157,7 +233,7 @@ def ask_question():
         Estás analizando datos de tráfico del Área Metropolitana de Guadalajara (AMG), México.
         
         Tienes acceso a una tabla llamada 'traffic_data' con estas columnas:
-        - id (TEXT): identificador único de la ubicación
+        - id (TEXT): identificador único de la ubicación (NO LO MENCIONES EN LA RESPUESTA, no es relevante para humanos)
         - predominant_color (TEXT): indicador de nivel de tráfico
           * green = tráfico LIGERO (fluido, sin congestión)
           * yellow/orange = tráfico MEDIO (algo de congestión)
@@ -168,13 +244,16 @@ def ask_question():
         - coordx (FLOAT): coordenada de LONGITUD (aproximadamente -103.2 a -103.5 para Guadalajara)
         - coordy (FLOAT): coordenada de LATITUD (aproximadamente 20.5 a 20.8 para Guadalajara)
         
-        IMPORTANTE: Las coordenadas están en formato (longitud, latitud). Coordx es longitud (oeste de Greenwich, valores negativos) y Coordy es latitud.
+        IMPORTANTE: 
+        - Las coordenadas están en formato (longitud, latitud). Coordx es longitud (oeste de Greenwich, valores negativos) y Coordy es latitud.
+        - Al buscar por coordenadas, usa una consulta de rango como: WHERE coordx BETWEEN (lon-0.01) AND (lon+0.01) AND coordy BETWEEN (lat-0.01) AND (lat+0.01)
+        - SIEMPRE incluye las coordenadas (coordx y coordy) en tu respuesta cuando devuelvas datos de ubicaciones.
+        - NO incluyas IDs en tu respuesta, no son útiles para humanos.
         
         Pregunta del usuario: {question_with_coords}
         
-        Al buscar por coordenadas, usa una consulta de rango como: WHERE coordx BETWEEN (lon-0.01) AND (lon+0.01) AND coordy BETWEEN (lat-0.01) AND (lat+0.01)
-        
-        Por favor proporciona una respuesta clara y concisa en español. Si devuelves datos con coordenadas, incluye los valores de coordx y coordy.
+        Por favor proporciona una respuesta clara y concisa en español. 
+        OBLIGATORIO: Si mencionas ubicaciones, SIEMPRE incluye las coordenadas en formato "coordx: [valor], coordy: [valor]" para que puedan ser traducidas a nombres de calles.
         Cuando menciones niveles de tráfico, usa términos claros: tráfico ligero/fluido (green), tráfico medio (yellow/orange), tráfico pesado/alto (red).
         """
         
@@ -183,12 +262,16 @@ def ask_question():
         print("✅ Agent execution completed")
         
         answer = result.get('output', 'No se generó respuesta')
-        print(f"📝 Answer generated: {answer[:100]}..." if len(answer) > 100 else f"📝 Answer: {answer}")
+        print(f"📝 Raw answer: {answer[:100]}..." if len(answer) > 100 else f"📝 Raw answer: {answer}")
+        
+        # Post-procesar para humanizar la respuesta con nombres de zonas
+        humanized_answer = humanize_agent_response(answer)
+        print(f"📝 Humanized answer: {humanized_answer[:100]}..." if len(humanized_answer) > 100 else f"📝 Humanized answer: {humanized_answer}")
         
         print(f"✅ Request processed successfully")
         print(f"{'='*60}\n")
         return jsonify({
-            'answer': answer,
+            'answer': humanized_answer,
             'success': True
         })
         
