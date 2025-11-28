@@ -52,85 +52,83 @@ print("🗺️  Setting up geocoding service...")
 geolocator = Nominatim(user_agent="amg_traffic_app")
 print("✅ Geocoder ready")
 
-def get_address_from_coordinates(lat, lon):
+def obtener_direccion_desde_coordenadas(lat, lon):
     try:
-        location = geolocator.reverse(f"{lat}, {lon}", language="es", timeout=10)
-        if location:
-            address = location.raw.get('address', {})
+        ubicacion = geolocator.reverse(f"{lat}, {lon}", language="es", timeout=10)
+        if ubicacion:
+            direccion = ubicacion.raw.get('address', {})
             
-            parts = []
-            if 'road' in address:
-                parts.append(address['road'])
-            if 'suburb' in address:
-                parts.append(address['suburb'])
-            elif 'neighbourhood' in address:
-                parts.append(address['neighbourhood'])
-            if 'city' in address:
-                parts.append(address['city'])
-            elif 'town' in address:
-                parts.append(address['town'])
+            partes = []
+            if 'road' in direccion:
+                partes.append(direccion['road'])
+            if 'suburb' in direccion:
+                partes.append(direccion['suburb'])
+            elif 'neighbourhood' in direccion:
+                partes.append(direccion['neighbourhood'])
+            if 'city' in direccion:
+                partes.append(direccion['city'])
+            elif 'town' in direccion:
+                partes.append(direccion['town'])
             
-            return ', '.join(parts) if parts else location.address
+            return ', '.join(partes) if partes else ubicacion.address
         return None
     except Exception as e:
-        print(f"Geocoding error: {e}")
+        print(f"Error de geocodificación: {e}")
         return None
 
-def get_coordinates_from_address(address_query):
+def obtener_coordenadas_desde_direccion(consulta_direccion):
     try:
-        location = geolocator.geocode(address_query, timeout=10)
-        if location:
-            return (location.latitude, location.longitude)
+        ubicacion = geolocator.geocode(consulta_direccion, timeout=10)
+        if ubicacion:
+            return (ubicacion.latitude, ubicacion.longitude)
         return None
     except Exception as e:
-        print(f"Forward geocoding error: {e}")
+        print(f"Error de geocodificación directa: {e}")
         return None
 
-def detect_and_convert_address_in_question(question):
-    address_keywords = [
-        'street', 'avenue', 'road', 'calle', 'avenida', 'en ', 'on ',
-        'boulevard', 'bulevar', 'callejón', 'callejuela', 'paseo',
-        'plaza', 'plazuela', 'glorieta', 'rotonda', 'circuito',
-        'periférico', 'anillo', 'libramiento', 'autopista',
-        'carretera', 'camino', 'sendero', 'vereda', 'andador',
-        'privada', 'fraccionamiento', 'colonia', 'barrio',
-        'sector', 'zona', 'región', 'área', 'distrito',
-        'cerca de', 'próximo a', 'junto a', 'frente a',
-        'esquina', 'cruce', 'intersección', 'puente',
-        'centro comercial', 'mall', 'mercado', 'hospital',
-        'escuela', 'universidad', 'parque', 'jardín'
+def detectar_y_convertir_direccion_en_pregunta(pregunta):
+    palabras_clave_direccion = [
+        'calle', 'avenida', 'en ', 'bulevar', 'boulevard',
+        'callejón', 'callejuela', 'paseo', 'plaza', 'plazuela',
+        'glorieta', 'rotonda', 'circuito', 'periférico', 'anillo',
+        'libramiento', 'autopista', 'carretera', 'camino', 'sendero',
+        'vereda', 'andador', 'privada', 'fraccionamiento', 'colonia',
+        'barrio', 'sector', 'zona', 'región', 'área', 'distrito',
+        'cerca de', 'próximo a', 'junto a', 'frente a', 'esquina',
+        'cruce', 'intersección', 'puente', 'centro comercial', 'mall',
+        'mercado', 'hospital', 'escuela', 'universidad', 'parque', 'jardín'
     ]
     
-    lower_question = question.lower()
-    has_address_keyword = any(keyword in lower_question for keyword in address_keywords)
+    pregunta_minusculas = pregunta.lower()
+    tiene_palabra_clave_direccion = any(palabra_clave in pregunta_minusculas for palabra_clave in palabras_clave_direccion)
     
-    if has_address_keyword:
-        coords = get_coordinates_from_address(question)
+    if tiene_palabra_clave_direccion:
+        coordenadas = obtener_coordenadas_desde_direccion(pregunta)
         
-        if coords:
-            lat, lon = coords
-            return f"{question}\n\nNOTA: La dirección corresponde aproximadamente a latitud {lat} y longitud {lon}. Busca datos de tráfico con coordx cerca de {lat} y coordy cerca de {lon} (dentro de un radio de 0.01 grados)."
+        if coordenadas:
+            lat, lon = coordenadas
+            return f"{pregunta}\n\nNOTA: La dirección corresponde aproximadamente a latitud {lat} y longitud {lon}. Busca datos de tráfico con coordx cerca de {lat} y coordy cerca de {lon} (dentro de un radio de 0.01 grados)."
     
-    return question
+    return pregunta
 
-def enrich_results_with_addresses(query_result):
+def enriquecer_resultados_con_direcciones(resultado_consulta):
     try:
-        if isinstance(query_result, str):
-            return query_result
+        if isinstance(resultado_consulta, str):
+            return resultado_consulta
         
-        if isinstance(query_result, list):
-            for record in query_result:
-                if isinstance(record, dict) and 'coordx' in record and 'coordy' in record:
-                    address = get_address_from_coordinates(record['coordx'], record['coordy'])
-                    if address:
-                        record['address'] = address
+        if isinstance(resultado_consulta, list):
+            for registro in resultado_consulta:
+                if isinstance(registro, dict) and 'coordx' in registro and 'coordy' in registro:
+                    direccion = obtener_direccion_desde_coordenadas(registro['coordx'], registro['coordy'])
+                    if direccion:
+                        registro['direccion'] = direccion
         
-        return query_result
+        return resultado_consulta
     except Exception as e:
-        print(f"Error enriching results: {e}")
-        return query_result
+        print(f"Error enriqueciendo resultados: {e}")
+        return resultado_consulta
 
-def humanize_agent_response(agent_response):
+def humanizar_respuesta_agente(respuesta_agente):
     """
     Post-procesa la respuesta del agente para convertir coordenadas e IDs técnicos
     a nombres de zonas y direcciones legibles.
@@ -138,52 +136,52 @@ def humanize_agent_response(agent_response):
     print("🗺️  Humanizando respuesta con nombres de zonas...")
     
     try:
-        humanized = agent_response
+        humanizada = respuesta_agente
         
         # Patrón para detectar coordenadas en varios formatos
         # Formato: "coordx: -103.xxx, coordy: 20.xxx" o "(-103.xxx, 20.xxx)" o "longitud: -103.xxx, latitud: 20.xxx"
-        coord_patterns = [
+        patrones_coordenadas = [
             r'coordx[:\s]+([-\d.]+)[,\s]+coordy[:\s]+([-\d.]+)',
             r'\(([-\d.]+)[,\s]+([-\d.]+)\)',
             r'longitud[:\s]+([-\d.]+)[,\s]+latitud[:\s]+([-\d.]+)',
             r'lon[:\s]+([-\d.]+)[,\s]+lat[:\s]+([-\d.]+)'
         ]
         
-        coords_found = set()
-        for pattern in coord_patterns:
-            matches = re.finditer(pattern, humanized, re.IGNORECASE)
-            for match in matches:
-                lon = float(match.group(1))
-                lat = float(match.group(2))
+        coordenadas_encontradas = set()
+        for patron in patrones_coordenadas:
+            coincidencias = re.finditer(patron, humanizada, re.IGNORECASE)
+            for coincidencia in coincidencias:
+                lon = float(coincidencia.group(1))
+                lat = float(coincidencia.group(2))
                 # Asegurarse de que sean coordenadas válidas para Guadalajara
                 if -103.6 < lon < -103.0 and 20.4 < lat < 20.9:
-                    coords_found.add((lon, lat, match.group(0)))
+                    coordenadas_encontradas.add((lon, lat, coincidencia.group(0)))
         
         # Convertir cada par de coordenadas a dirección
-        replacements = {}
-        for lon, lat, original_text in coords_found:
-            address = get_address_from_coordinates(lat, lon)
-            if address:
+        reemplazos = {}
+        for lon, lat, texto_original in coordenadas_encontradas:
+            direccion = obtener_direccion_desde_coordenadas(lat, lon)
+            if direccion:
                 # Crear una versión humanizada
-                zone_text = f"📍 {address}"
-                replacements[original_text] = zone_text
-                print(f"   ✅ Traducido: ({lon}, {lat}) -> {address}")
+                texto_zona = f"📍 {direccion}"
+                reemplazos[texto_original] = texto_zona
+                print(f"   ✅ Traducido: ({lon}, {lat}) -> {direccion}")
         
         # Aplicar reemplazos
-        for original, replacement in replacements.items():
-            humanized = humanized.replace(original, replacement)
+        for original, reemplazo in reemplazos.items():
+            humanizada = humanizada.replace(original, reemplazo)
         
         # Remover o humanizar IDs técnicos si aparecen explícitamente
         # Patrón para "id: abc123" o "ID: abc123"
-        id_pattern = r'id[:\s]+[\w-]+'
-        id_matches = re.finditer(id_pattern, humanized, re.IGNORECASE)
-        for match in id_matches:
+        patron_id = r'id[:\s]+[\w-]+'
+        coincidencias_id = re.finditer(patron_id, humanizada, re.IGNORECASE)
+        for coincidencia in coincidencias_id:
             # Los IDs no son útiles para humanos, intentar removerlos o contextualizarlos
-            if "id:" in match.group(0).lower():
-                humanized = humanized.replace(match.group(0), "(ubicación)")
+            if "id:" in coincidencia.group(0).lower():
+                humanizada = humanizada.replace(coincidencia.group(0), "(ubicación)")
         
         # Mejorar términos técnicos
-        tech_replacements = {
+        reemplazos_tecnicos = {
             'exponential_color_weighting': 'nivel de congestión',
             'linear_color_weighting': 'índice de tráfico',
             'predominant_color': 'estado del tráfico',
@@ -195,42 +193,42 @@ def humanize_agent_response(agent_response):
             'red': '🔴 PESADO (muy congestionado)'
         }
         
-        for tech_term, human_term in tech_replacements.items():
-            humanized = re.sub(r'\b' + tech_term + r'\b', human_term, humanized, flags=re.IGNORECASE)
+        for termino_tecnico, termino_humano in reemplazos_tecnicos.items():
+            humanizada = re.sub(r'\b' + termino_tecnico + r'\b', termino_humano, humanizada, flags=re.IGNORECASE)
         
         print(f"   ✅ Respuesta humanizada completada")
-        return humanized
+        return humanizada
         
     except Exception as e:
         print(f"   ⚠️  Error al humanizar respuesta: {e}")
-        return agent_response
+        return respuesta_agente
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/ask', methods=['POST'])
-def ask_question():
+def preguntar():
     try:
-        data = request.get_json()
-        question = data.get('question', '').strip()
+        datos = request.get_json()
+        pregunta = datos.get('question', '').strip()
         
         print(f"\n{'='*60}")
-        print(f"📥 New question received: '{question}'")
+        print(f"📥 Nueva pregunta recibida: '{pregunta}'")
         print(f"{'='*60}")
         
-        if not question:
-            print("❌ Empty question received")
+        if not pregunta:
+            print("❌ Pregunta vacía recibida")
             return jsonify({'error': 'No se proporcionó ninguna pregunta'}), 400
         
-        print("🔍 Checking for address in question...")
-        question_with_coords = detect_and_convert_address_in_question(question)
-        if question_with_coords != question:
-            print("✅ Address detected and converted to coordinates")
+        print("🔍 Verificando si hay dirección en la pregunta...")
+        pregunta_con_coordenadas = detectar_y_convertir_direccion_en_pregunta(pregunta)
+        if pregunta_con_coordenadas != pregunta:
+            print("✅ Dirección detectada y convertida a coordenadas")
         else:
-            print("ℹ️  No address detected, proceeding with original question")
+            print("ℹ️  No se detectó dirección, procediendo con la pregunta original")
         
-        enhanced_question = f"""
+        pregunta_mejorada = f"""
         Estás analizando datos de tráfico del Área Metropolitana de Guadalajara (AMG), México.
         
         Tienes acceso a una tabla llamada 'traffic_data' con estas columnas:
@@ -269,7 +267,7 @@ def ask_question():
         - Si el usuario pregunta "cómo está el tráfico en X", usa agregaciones para dar un resumen general, no listados completos
         - Entre traer 50 filas o hacer un GROUP BY que devuelva 3 filas, SIEMPRE elige el GROUP BY
         
-        Pregunta del usuario: {question_with_coords}
+        Pregunta del usuario: {pregunta_con_coordenadas}
         
         Por favor proporciona una respuesta clara y concisa en español. 
         OBLIGATORIO: Si mencionas ubicaciones, SIEMPRE incluye las coordenadas en formato "coordx: [valor], coordy: [valor]" para que puedan ser traducidas a nombres de calles.
@@ -277,26 +275,26 @@ def ask_question():
         Recuerda: Prefiere agregaciones y GROUP BY sobre listados completos. LIMIT 50 (o menos) en todas las consultas SQL.
         """
         
-        print("🤖 Executing SQL agent...")
-        result = agent_executor.invoke({"input": enhanced_question})
-        print("✅ Agent execution completed")
+        print("🤖 Ejecutando agente SQL...")
+        resultado = agent_executor.invoke({"input": pregunta_mejorada})
+        print("✅ Ejecución del agente completada")
         
-        answer = result.get('output', 'No se generó respuesta')
-        print(f"📝 Raw answer: {answer[:100]}..." if len(answer) > 100 else f"📝 Raw answer: {answer}")
+        respuesta = resultado.get('output', 'No se generó respuesta')
+        print(f"📝 Respuesta sin procesar: {respuesta[:100]}..." if len(respuesta) > 100 else f"📝 Respuesta sin procesar: {respuesta}")
         
         # Post-procesar para humanizar la respuesta con nombres de zonas
-        humanized_answer = humanize_agent_response(answer)
-        print(f"📝 Humanized answer: {humanized_answer[:100]}..." if len(humanized_answer) > 100 else f"📝 Humanized answer: {humanized_answer}")
+        respuesta_humanizada = humanizar_respuesta_agente(respuesta)
+        print(f"📝 Respuesta humanizada: {respuesta_humanizada[:100]}..." if len(respuesta_humanizada) > 100 else f"📝 Respuesta humanizada: {respuesta_humanizada}")
         
-        print(f"✅ Request processed successfully")
+        print(f"✅ Solicitud procesada exitosamente")
         print(f"{'='*60}\n")
         return jsonify({
-            'answer': humanized_answer,
+            'answer': respuesta_humanizada,
             'success': True
         })
         
     except Exception as e:
-        print(f"\n❌ ERROR processing question: {e}")
+        print(f"\n❌ ERROR procesando pregunta: {e}")
         print(f"{'='*60}\n")
         return jsonify({
             'error': f'Error al procesar tu pregunta: {str(e)}',
