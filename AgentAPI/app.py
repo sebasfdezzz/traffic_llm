@@ -187,6 +187,7 @@ def humanizar_respuesta_agente(respuesta_agente):
             'predominant_color': 'estado del tráfico',
             'coordx': 'longitud',
             'coordy': 'latitud',
+            'red_wine': '🍷 MUY PESADO (congestión crítica)',
             'green': '🟢 LIGERO (fluido)',
             'yellow': '🟡 MEDIO (moderado)',
             'orange': '🟠 MEDIO-ALTO (algo congestionado)',
@@ -233,12 +234,15 @@ def preguntar():
         
         Tienes acceso a una tabla llamada 'traffic_data' con estas columnas:
         - id (TEXT): identificador único de la ubicación (NO LO MENCIONES EN LA RESPUESTA, no es relevante para humanos)
-        - predominant_color (TEXT): indicador de nivel de tráfico
-          * green = tráfico LIGERO (fluido, sin congestión)
-          * yellow/orange = tráfico MEDIO (algo de congestión)
-          * red = tráfico ALTO (congestión severa, muy lento)
+        - predominant_color (TEXT): indicador de nivel de tráfico (ESTE ES EL CAMPO PRINCIPAL PARA DETERMINAR LA CALIDAD DEL TRÁFICO)
+          * green = tráfico LIGERO/EXCELENTE (fluido, sin congestión) - MEJOR TRÁFICO
+          * yellow = tráfico MEDIO (moderado, algo de congestión)
+          * orange = tráfico MEDIO-ALTO (congestionado)
+          * red = tráfico ALTO/PESADO (congestión severa, muy lento) - PEOR TRÁFICO
+          * red_wine = tráfico MUY PESADO (congestión crítica, casi detenido) - EL PEOR TRÁFICO POSIBLE
+          IMPORTANTE: Para identificar el MEJOR tráfico busca 'green'. Para el PEOR tráfico busca 'red_wine' y 'red'.
         - exponential_color_weighting (FLOAT): puntaje de congestión ponderado exponencial (mayor valor = peor tráfico)
-        - linear_color_weighting (FLOAT): puntaje de congestión ponderado lineal (mayor valor = peor tr��fico)
+        - linear_color_weighting (FLOAT): puntaje de congestión ponderado lineal (mayor valor = peor tráfico)
         - diffuse_logic_traffic (FLOAT): valor difuso (NO es relevante, ignóralo)
         - coordx (FLOAT): coordenada de LONGITUD (aproximadamente -103.2 a -103.5 para Guadalajara)
         - coordy (FLOAT): coordenada de LATITUD (aproximadamente 20.5 a 20.8 para Guadalajara)
@@ -260,9 +264,11 @@ def preguntar():
         - SIEMPRE prefiere usar agregaciones (COUNT, AVG, MAX, MIN) en lugar de traer filas individuales
         - Usa GROUP BY cuando sea posible para resumir información en lugar de mostrar cada registro
         - Ejemplos de queries eficientes:
-          * "¿Cuántos puntos con tráfico pesado?" -> SELECT COUNT(*) FROM traffic_data WHERE predominant_color = 'red'
+          * "¿Cuántos puntos con tráfico pesado?" -> SELECT COUNT(*) FROM traffic_data WHERE predominant_color IN ('red', 'red_wine')
+          * "¿Dónde está el PEOR tráfico?" -> SELECT coordx, coordy FROM traffic_data WHERE predominant_color IN ('red_wine', 'red') ORDER BY CASE WHEN predominant_color='red_wine' THEN 1 ELSE 2 END LIMIT 20
+          * "¿Dónde está el MEJOR tráfico?" -> SELECT coordx, coordy FROM traffic_data WHERE predominant_color = 'green' LIMIT 20
           * "¿Promedio de congestión en esta zona?" -> SELECT AVG(exponential_color_weighting), predominant_color FROM traffic_data WHERE ... GROUP BY predominant_color
-          * "¿Distribución del tráfico?" -> SELECT predominant_color, COUNT(*) as cantidad FROM traffic_data GROUP BY predominant_color
+          * "¿Distribución del tráfico?" -> SELECT predominant_color, COUNT(*) as cantidad FROM traffic_data GROUP BY predominant_color ORDER BY cantidad DESC
         - Solo trae filas individuales cuando el usuario pida ubicaciones específicas o "dónde está..."
         - Si el usuario pregunta "cómo está el tráfico en X", usa agregaciones para dar un resumen general, no listados completos
         - Entre traer 50 filas o hacer un GROUP BY que devuelva 3 filas, SIEMPRE elige el GROUP BY
@@ -271,7 +277,12 @@ def preguntar():
         
         Por favor proporciona una respuesta clara y concisa en español. 
         OBLIGATORIO: Si mencionas ubicaciones, SIEMPRE incluye las coordenadas en formato "coordx: [valor], coordy: [valor]" para que puedan ser traducidas a nombres de calles.
-        Cuando menciones niveles de tráfico, usa términos claros: tráfico ligero/fluido (green), tráfico medio (yellow/orange), tráfico pesado/alto (red).
+        Cuando menciones niveles de tráfico, usa términos claros: 
+        - tráfico ligero/excelente (green - MEJOR)
+        - tráfico medio (yellow)
+        - tráfico medio-alto (orange)
+        - tráfico pesado/alto (red - PEOR)
+        - tráfico muy pesado/crítico (red_wine - EL PEOR)
         Recuerda: Prefiere agregaciones y GROUP BY sobre listados completos. LIMIT 50 (o menos) en todas las consultas SQL.
         """
         
